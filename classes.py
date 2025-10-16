@@ -62,7 +62,7 @@ class Dashboard():
             if amount < 0:
                 raise NegativeValue("amount can not be less than zero")
             self.__wallet+=amount
-            print(f"{amount}$ added to youe wallet and your new balance is: {self.__wallet} ")
+            print(f"{amount}$ added to your wallet and your new balance is: {self.__wallet} ")
         except NegativeValue as e:
             print(f'error: {e}')
         
