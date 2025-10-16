@@ -60,9 +60,9 @@ class Dashboard():
     def charge_wallet(self,amount):
         try:
             if amount < 0:
-                raise NegativeValue("cant be smaller than 0 sir")
+                raise NegativeValue("amount can not be less than zero")
             self.__wallet+=amount
-            print(f"the amount:{amount}$ just added to ur wallet new balance: {self.__wallet} ")
+            print(f"{amount}$ added to youe wallet and your new balance is: {self.__wallet} ")
         except NegativeValue as e:
             print(f'error: {e}')
         
