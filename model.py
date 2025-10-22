@@ -9,10 +9,13 @@ class User:
 
 
 class Trip:
-    def __init__(self, start, end, status="pending"):
+    def __init__(self, start, end,origin=None,destination=None ,status="pending"):
         self.start = start
         self.end = end
         self.status = status
+        self.origin = origin
+        self.destination = destination
+
 
     def change_status(self, status):
         if status not in ("canceled", "done", "pending"):
@@ -24,12 +27,37 @@ class Trip:
 
 
 class Ticket:
-    def __init__(self, trip: Trip, cost):
+    def __init__(self, trip: Trip, cost,quantity=1):
         self.trip = trip
         self.cost = cost
+        self.quantity = quantity
 
     def __str__(self):
         return f"trip: {self.trip} | Cost: {self.cost}$"
+    
+    def reserve(self):
+        if self.status != 'pending':
+            raise TripStarted("you can't reserve this ticket")
+        if self.quantity <= 0:
+            raise ValueError("No tickets left.")
+        self.quantity -= 1
+        self.status = 'reserved'
+        print(" Ticket reserved successfully.")
+
+    def confirm(self):
+        if self.status != 'reserved':
+            raise TripStarted("Only reserved tickets can be confirmed.")
+        self.status = 'paid'
+        print(" Ticket payment confirmed.")
+
+    def cancel_reservation(self):
+        if self.status not in ('reserved', 'paid'):
+            raise TripStarted("Only reserved or paid tickets can be canceled.")
+        self.status = 'canceled'
+        self.quantity += 1
+        print(" Ticket canceled.")
+    
+
 
 
 class Passenger(User):
@@ -66,7 +94,10 @@ class Dashboard():
         except NegativeValue as e:
             print(f'error: {e}')
         
-    def history(self,user:Passenger):
-        for trip in user.tickets:
-            pprint(trip)
-    
+    def history(self):
+        if not self.user.tickets:
+            print("No tickets has been purchased yet.")
+        else:
+            print(" Ticket history:")
+            for ticket in self.user.tickets:
+                print(ticket)
