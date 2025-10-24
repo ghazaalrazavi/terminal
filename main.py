@@ -8,8 +8,6 @@ load_dotenv()
 dsn = os.getenv("DSN")
 
 
-
-
 def superuser_only(func):
     def wrapper(self, *args, **kwargs):
         if not isinstance(self.current_user, SuperUser):
@@ -41,7 +39,7 @@ class Service:
                 );
             """)
             cur.execute("""
-                CREATE TABLE IF NOT EXISTS journey (
+                CREATE TABLE IF NOT EXISTS trip (
                     id SERIAL PRIMARY KEY,
                     start DATE,
                     end_date DATE,
@@ -55,7 +53,7 @@ class Service:
                 CREATE TABLE IF NOT EXISTS ticket (
                     id SERIAL PRIMARY KEY,
                     user_id INT REFERENCES users(id) ON DELETE CASCADE,
-                    journey_id INT REFERENCES journey(id) ON DELETE CASCADE,
+                    trip_id INT REFERENCES trip(id) ON DELETE CASCADE,
                     price SMALLINT,
                     quantity SMALLINT DEFAULT 1,
                     status VARCHAR(10) DEFAULT 'pending' CHECK (status IN ('pending','reserved','paid','canceled')),
@@ -67,7 +65,8 @@ class Service:
                     id SERIAL PRIMARY KEY,
                     user_id INT REFERENCES users(id) ON DELETE CASCADE,
                     action VARCHAR(50),
-                    journey_id INT REFERENCES journey(id) ON DELETE CASCADE,
+                    trip_id INT REFERENCES trip(id) ON DELETE CASCADE,
+                    actor VARCHAR(60),
                     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """)
@@ -88,12 +87,27 @@ class Service:
     def add_log(self, action, trip_id=None):
         if not self.current_user:
             return
+        if isinstance(self.current_user, SuperUser):
+            actor_type = "superuser"
+        elif isinstance(self.current_user, Passenger):
+            actor_type = "passenger"
+        else:
+            actor_type = "Unknown"
         with MyContextManager(self.dsn) as cur:
             cur.execute("""
-                INSERT INTO logs (user_id, action, trip_id)
-                VALUES ((SELECT id FROM users WHERE email = %s LIMIT 1),%s,%s
-                        )""", (self.current_user.email, action, trip_id))
-
+                INSERT INTO logs (user_id, action, trip_id, actor)
+                VALUES (
+                    (SELECT id FROM users WHERE email=%s LIMIT 1),
+                    %s,
+                    %s,
+                    %s
+                );
+            """, (
+                self.current_user.email,
+                action,
+                trip_id,
+                actor_type
+            ))
 
     def register_user(self):
         email = input("Enter email: ")
@@ -110,9 +124,8 @@ class Service:
                 ON CONFLICT (email) DO NOTHING;
             """, (username, email, 0))
 
-        self.add_log("register_user")
         print(f" User {user.username} registered successfully!")
-
+        self.add_log("register_user")
 
     def register_superuser(self):
         email = input("Enter superuser email: ")
@@ -128,9 +141,8 @@ class Service:
                 ON CONFLICT (email) DO NOTHING;
             """, (username, email))
 
-        self.add_log("register_superuser")
         print(f" superuser {superuser.username} registered successfully!")
-
+        self.add_log("register_superuser")
 
     @superuser_only
     def add_ticket(self):
@@ -140,27 +152,21 @@ class Service:
         destination = input("Enter destination: ")
         cost = int(input("Enter ticket cost: "))
         quantity = int(input("Enter ticket quantity: "))
-
         with MyContextManager(self.dsn) as cur:
-
             cur.execute("""
-                INSERT INTO trip (start, end_date, origin, destination)
+                INSERT INTO trip (start, end, origin, destination)
                 VALUES (%s, %s, %s, %s)
                 RETURNING id;
             """, (start, end, origin, destination))
             trip_id = cur.fetchone()[0]
-
-
             cur.execute("""
-                INSERT INTO ticket (trip_id, price)
-                VALUES (%s, %s);
-            """, (trip_id, cost,quantity))
-
-        trip = Trip(start, end,origin,destination)
-        ticket = Ticket(trip, cost,quantity)
+                INSERT INTO ticket (trip_id, price, quantity)
+                VALUES (%s, %s, %s);
+            """, (trip_id, cost, quantity))
+        ticket = Ticket(Trip(start, end, origin, destination), cost, quantity)
         self.tickets.append(ticket)
+        print(f"Ticket added: {origin} → {destination} | {cost}$ | Qty: {quantity}")
         self.add_log("add_ticket", trip_id)
-        print(f" Ticket added for trip {start} => {end} (Cost: {cost}$) (quantity: {quantity})")
 
 
     def show_tickets(self):
@@ -212,12 +218,12 @@ class Service:
                 cur.execute("SELECT id FROM users WHERE email=%s;", (self.current_user.email,))
                 user_id = cur.fetchone()[0]
                 cur.execute("""
-                    UPDATE ticket SET status='paid', quantity=%s, user_id=%s WHERE journey_id=(SELECT id FROM journey WHERE start=%s AND end_date=%s LIMIT 1);
-                """, (ticket.quantity, user_id, ticket.journey.start, ticket.journey.end))
+                    UPDATE ticket SET status='paid', quantity=%s, user_id=%s WHERE trip_id=(SELECT id FROM trip WHERE start=%s AND end=%s LIMIT 1);
+                """, (ticket.quantity, user_id, ticket.trip.start, ticket.trip.end))
                 cur.execute("""
                     INSERT INTO transactions (user_id, ticket_id, type, amount)
-                    VALUES (%s, (SELECT id FROM ticket WHERE journey_id=(SELECT id FROM journey WHERE start=%s AND end_date=%s LIMIT 1)), 'buy', %s);
-                """, (user_id, ticket.journey.start, ticket.journey.end, ticket.cost))
+                    VALUES (%s, (SELECT id FROM ticket WHERE trip_id=(SELECT id FROM trip WHERE start=%s AND end=%s LIMIT 1)), 'buy', %s);
+                """, (user_id, ticket.trip.start, ticket.trip.end, ticket.cost))
             print(f"Ticket purchased directly for {ticket.cost}$")
             self.add_log("buy_ticket_direct")
 
@@ -238,15 +244,15 @@ class Service:
         ticket = self.tickets[choice]
         ticket.reserve()
         self.current_user.get_ticket(ticket)
-        with MyContextManager(self.data) as cur:
+        with MyContextManager(self.dsn) as cur:
             cur.execute("SELECT id FROM users WHERE email=%s;", (self.current_user.email,))
             user_id = cur.fetchone()[0]
             cur.execute("""
-                UPDATE ticket SET status='reserved', quantity=%s, user_id=%s WHERE trip_id=(SELECT id FROM trip WHERE start=%s AND end_date=%s LIMIT 1);
+                UPDATE ticket SET status='reserved', quantity=%s, user_id=%s WHERE trip_id=(SELECT id FROM trip WHERE start=%s AND end=%s LIMIT 1);
             """, (ticket.quantity, user_id, ticket.trip.start, ticket.trip.end))
             cur.execute("""
                 INSERT INTO transactions (user_id, ticket_id, type, amount)
-                VALUES (%s, (SELECT id FROM ticket WHERE trip_id=(SELECT id FROM trip WHERE start=%s AND end_date=%s LIMIT 1)), 'reserve', 0);
+                VALUES (%s, (SELECT id FROM ticket WHERE trip_id=(SELECT id FROM trip WHERE start=%s AND end=%s LIMIT 1)), 'reserve', 0);
             """, (user_id, ticket.trip.start, ticket.trip.end))
         print("Ticket reserved successfully.")
         self.add_log("reserve_ticket")
@@ -328,33 +334,28 @@ class Service:
 
     def open_dashboard(self):
         if not isinstance(self.current_user, Passenger):
-            print(" Only passengers have a dashboard.")
+            print("Only travellers have a dashboard.")
             return
-
         while True:
-            print(f"\n Dashboard — {self.current_user.username}")
+            print(f"\nDashboard — {self.current_user.username}")
             print("1. Charge wallet")
             print("2. View history")
-            print("3. Back to main menu")
-            choice = input("Enter your choice: ")
-
+            print("3. See wallet")
+            print("4. Back")
+            choice = input("Enter choice: ")
             if choice == "1":
                 try:
-                    amount = int(input("Enter amount to charge: "))
+                    amount = int(input("Enter amount: "))
                     self.dashboard.charge_wallet(amount)
                     self.add_log("charge_wallet")
                 except ValueError:
-                    print(" Invalid amount.")
+                    print("Invalid amount.")
             elif choice == "2":
-                print(f"\n Ticket history for {self.current_user.username}:")
                 self.dashboard.history()
-                self.add_log("view_history")
             elif choice == "3":
                 print(f"Wallet balance: {self.dashboard.wallet}$")
             elif choice == "4":
                 break
-            else:
-                print("Invalid choice. Try again.")
 
 
     def show(self):
