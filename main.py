@@ -154,7 +154,7 @@ class Service:
         quantity = int(input("Enter ticket quantity: "))
         with MyContextManager(self.dsn) as cur:
             cur.execute("""
-                INSERT INTO trip (start, end, origin, destination)
+                INSERT INTO trip (start, end_date, origin, destination)
                 VALUES (%s, %s, %s, %s)
                 RETURNING id;
             """, (start, end, origin, destination))
@@ -218,11 +218,11 @@ class Service:
                 cur.execute("SELECT id FROM users WHERE email=%s;", (self.current_user.email,))
                 user_id = cur.fetchone()[0]
                 cur.execute("""
-                    UPDATE ticket SET status='paid', quantity=%s, user_id=%s WHERE trip_id=(SELECT id FROM trip WHERE start=%s AND end=%s LIMIT 1);
+                    UPDATE ticket SET status='paid', quantity=%s, user_id=%s WHERE trip_id=(SELECT id FROM trip WHERE start=%s AND end_date=%s LIMIT 1);
                 """, (ticket.quantity, user_id, ticket.trip.start, ticket.trip.end))
                 cur.execute("""
                     INSERT INTO transactions (user_id, ticket_id, type, amount)
-                    VALUES (%s, (SELECT id FROM ticket WHERE trip_id=(SELECT id FROM trip WHERE start=%s AND end=%s LIMIT 1)), 'buy', %s);
+                    VALUES (%s, (SELECT id FROM ticket WHERE trip_id=(SELECT id FROM trip WHERE start=%s AND end_date=%s LIMIT 1)), 'buy', %s);
                 """, (user_id, ticket.trip.start, ticket.trip.end, ticket.cost))
             print(f"Ticket purchased directly for {ticket.cost}$")
             self.add_log("buy_ticket_direct")
@@ -248,11 +248,11 @@ class Service:
             cur.execute("SELECT id FROM users WHERE email=%s;", (self.current_user.email,))
             user_id = cur.fetchone()[0]
             cur.execute("""
-                UPDATE ticket SET status='reserved', quantity=%s, user_id=%s WHERE trip_id=(SELECT id FROM trip WHERE start=%s AND end=%s LIMIT 1);
+                UPDATE ticket SET status='reserved', quantity=%s, user_id=%s WHERE trip_id=(SELECT id FROM trip WHERE start=%s AND end_date=%s LIMIT 1);
             """, (ticket.quantity, user_id, ticket.trip.start, ticket.trip.end))
             cur.execute("""
                 INSERT INTO transactions (user_id, ticket_id, type, amount)
-                VALUES (%s, (SELECT id FROM ticket WHERE trip_id=(SELECT id FROM trip WHERE start=%s AND end=%s LIMIT 1)), 'reserve', 0);
+                VALUES (%s, (SELECT id FROM ticket WHERE trip_id=(SELECT id FROM trip WHERE start=%s AND end_date=%s LIMIT 1)), 'reserve', 0);
             """, (user_id, ticket.trip.start, ticket.trip.end))
         print("Ticket reserved successfully.")
         self.add_log("reserve_ticket")
@@ -385,7 +385,7 @@ service.options = {
     "4": ("Show Tickets", service.show_tickets),
     "5": ("Reserve Ticket", service.reserve_ticket),
     "6": ("Confirm Reservation (Pay)", service.confirm_reservation),
-    "7": ("Buy Ticket Direct", service.buy_ticket),
+    "7": ("Buy Ticket Directly", service.buy_ticket),
     "8": ("Cancel Ticket", service.cancel_ticket),
     "9": ("Dashboard", service.open_dashboard),
     "10": ("Show Revenue (Superuser only)", service.show_revenue),
