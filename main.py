@@ -169,13 +169,24 @@ class Service:
         self.add_log("add_ticket", trip_id)
 
 
+
     def show_tickets(self):
-        if not self.tickets:
+        with MyContextManager(self.dsn) as cur:
+            cur.execute("""
+                SELECT t.id, tr.start, tr.end_date, tr.origin, tr.destination, tr.status, t.price
+                FROM ticket t
+                JOIN trip tr ON t.trip_id = tr.id;
+            """)
+            rows = cur.fetchall()
+
+        if not rows:
             print(" No tickets available.")
             return
+
         print("\nAvailable tickets:")
-        for i, ticket in enumerate(self.tickets, start=1):
-            print(f"{i}. {ticket}")
+        for i, (tid, start, end_date, origin, destination, status, price) in enumerate(rows, start=1):
+            print(f"{i}. trip: {start} => {end_date} | {origin} → {destination} | Status: {status} | Cost: {price}$")
+
 
 
     def buy_ticket(self):
