@@ -171,22 +171,12 @@ class Service:
 
 
     def show_tickets(self):
-        with MyContextManager(self.dsn) as cur:
-            cur.execute("""
-                SELECT t.id, tr.start, tr.end_date, tr.origin, tr.destination, tr.status, t.price
-                FROM ticket t
-                JOIN trip tr ON t.trip_id = tr.id;
-            """)
-            rows = cur.fetchall()
-
-        if not rows:
-            print(" No tickets available.")
+        if not self.tickets:
+            print("No tickets available.")
             return
-
         print("\nAvailable tickets:")
-        for i, (tid, start, end_date, origin, destination, status, price) in enumerate(rows, start=1):
-            print(f"{i}. trip: {start} => {end_date} | {origin} → {destination} | Status: {status} | Cost: {price}$")
-
+        for i, ticket in enumerate(self.tickets, start=1):
+            print(f"{i}. trip: {ticket.trip.start} => {ticket.trip.end} | {ticket.trip.origin} → {ticket.trip.destination} | Status: {ticket.status} | Cost: {ticket.cost}$")
 
 
     def buy_ticket(self):
@@ -216,10 +206,6 @@ class Service:
             if self.dashboard.wallet < ticket.cost:
                 raise InsufficientFunds(f" Not enough money. You need {ticket.cost - self.dashboard.wallet}$ more.")
 
-    
-            if self.dashboard.wallet < ticket.cost:
-                print("Not enough funds.")
-                return
             ticket.status = "paid"
             ticket.quantity -= 1
             self.dashboard.wallet -= ticket.cost
@@ -228,19 +214,22 @@ class Service:
             with MyContextManager(self.dsn) as cur:
                 cur.execute("SELECT id FROM users WHERE email=%s;", (self.current_user.email,))
                 user_id = cur.fetchone()[0]
+                cur.execute("SELECT id FROM ticket WHERE trip_id=(SELECT id FROM trip WHERE start=%s AND end_date=%s LIMIT 1);", (ticket.trip.start, ticket.trip.end))
+                ticket_id = cur.fetchone()[0]
                 cur.execute("""
-                    UPDATE ticket SET status='paid', quantity=%s, user_id=%s WHERE trip_id=(SELECT id FROM trip WHERE start=%s AND end_date=%s LIMIT 1);
-                """, (ticket.quantity, user_id, ticket.trip.start, ticket.trip.end))
+                    UPDATE ticket SET status='paid', quantity=%s, user_id=%s WHERE id=%s;
+                """, (ticket.quantity, user_id, ticket_id))
                 cur.execute("""
                     INSERT INTO transactions (user_id, ticket_id, type, amount)
-                    VALUES (%s, (SELECT id FROM ticket WHERE trip_id=(SELECT id FROM trip WHERE start=%s AND end_date=%s LIMIT 1)), 'buy', %s);
-                """, (user_id, ticket.trip.start, ticket.trip.end, ticket.cost))
-            print(f"Ticket purchased directly for {ticket.cost}$")
-            self.add_log("buy_ticket_direct")
+                    VALUES (%s, %s, 'buy', %s);
+                """, (user_id, ticket_id, ticket.cost))
 
+            print(f"Ticket purchased successfully for {ticket.cost}$")
+            self.add_log("buy_ticket_direct")
 
         except (ValueError, ChoiceError, InsufficientFunds) as e:
             print(f" Error: {e}")
+
 
     def reserve_ticket(self):
         if not isinstance(self.current_user, Passenger):
@@ -319,28 +308,31 @@ class Service:
         with MyContextManager(self.dsn) as cur:
             cur.execute("SELECT id FROM users WHERE email=%s;", (self.current_user.email,))
             user_id = cur.fetchone()[0]
+            cur.execute("SELECT id FROM ticket WHERE trip_id=(SELECT id FROM trip WHERE start=%s AND end_date=%s LIMIT 1);", (ticket.trip.start, ticket.trip.end))
+            ticket_id = cur.fetchone()[0]
             cur.execute("""
-                UPDATE ticket SET status='canceled', quantity=%s WHERE user_id=%s;
-            """, (ticket.quantity, user_id))
+                UPDATE ticket SET status='canceled', quantity=%s WHERE id=%s;
+            """, (ticket.quantity, ticket_id))
             cur.execute("""
                 INSERT INTO transactions (user_id, ticket_id, type, amount)
-                VALUES (%s, (SELECT id FROM ticket WHERE user_id=%s LIMIT 1), 'cancel', %s);
-            """, (user_id, user_id, refund))
-        print(f"Ticket canceled. Refund {refund}$ returned to wallet.")
+                VALUES (%s, %s, 'refund', %s);
+            """, (user_id, ticket_id, refund))
+
+        print(f"Ticket canceled successfully. Refund {refund}$ returned to wallet.")
         self.add_log("cancel_ticket")
+
 
     @superuser_only
     def show_revenue(self):
         with MyContextManager(self.dsn) as cur:
             cur.execute("""
                 SELECT 
-                    COALESCE(SUM(CASE WHEN type='buy' THEN amount ELSE 0 END), 0) -
-                    COALESCE(SUM(CASE WHEN type='cancel' THEN amount ELSE 0 END), 0)
+                    COALESCE(SUM(CASE WHEN type='buy' THEN amount ELSE 0 END),0) -
+                    COALESCE(SUM(CASE WHEN type='refund' THEN amount ELSE 0 END),0)
                 FROM transactions;
             """)
             revenue = cur.fetchone()[0] or 0
-        print(f"Total revenue (after cancellations): {revenue}$")
-
+        print(f"Total revenue (after refunds): {revenue}$")
 
 
     def open_dashboard(self):

@@ -23,7 +23,7 @@ class Trip:
         self.status = status
 
     def __str__(self):
-        return f"{self.start} => {self.end} | Status: {self.status}"
+        return f"{self.start} => {self.end} | {self.origin} → {self.destination} | Status: {self.status}"
 
 
 class Ticket:
@@ -43,7 +43,6 @@ class Ticket:
             raise ValueError("No tickets left.")
         self.quantity -= 1
         self.status = 'reserved'
-        print(" Ticket reserved successfully.")
 
     def confirm(self):
         if self.status != 'reserved':
@@ -78,27 +77,25 @@ class SuperUser(User):
         super().__init__(email, username, password)
 
 class Dashboard():
-    def __init__(self,user:Passenger,wallet):
+    def __init__(self, user: Passenger, wallet):
         self.user = user
         self.wallet = wallet
-    
+
     def charge_wallet(self, amount):
-        try:
-            if amount < 0:
-                raise NegativeValue("amount can not be less than zero")
-            self.wallet += amount
-            from db import MyContextManager
-            import os
-            dsn = os.getenv("DSN")
-            with MyContextManager(dsn) as cur:
-                cur.execute("UPDATE users SET wallet = %s WHERE email = %s;", (self.wallet, self.user.email))
-            print(f"{amount}$ added to your wallet and your new balance is: {self.wallet}")
-        except NegativeValue as e:
-            print(f'error: {e}')
+        if amount < 0:
+            print("Error: amount can not be less than zero")
+            return
+        self.wallet += amount
+        from db import MyContextManager
+        import os
+        dsn = os.getenv("DSN")
+        with MyContextManager(dsn) as cur:
+            cur.execute("UPDATE users SET wallet = %s WHERE email = %s;", (self.wallet, self.user.email))
+        print(f"{amount}$ added to your wallet. New balance: {self.wallet}$")
 
     def history(self):
         if not self.user.tickets:
-            print("No tickets has been purchased yet.")
+            print("No tickets have been purchased yet.")
         else:
             print("Ticket history:")
             for ticket in self.user.tickets:
