@@ -82,19 +82,24 @@ class Dashboard():
         self.user = user
         self.wallet = wallet
     
-    def charge_wallet(self,amount):
+    def charge_wallet(self, amount):
         try:
             if amount < 0:
                 raise NegativeValue("amount can not be less than zero")
-            self.wallet+=amount
-            print(f"{amount}$ added to your wallet and your new balance is: {self.wallet} ")
+            self.wallet += amount
+            from db import MyContextManager
+            import os
+            dsn = os.getenv("DSN")
+            with MyContextManager(dsn) as cur:
+                cur.execute("UPDATE users SET wallet = %s WHERE email = %s;", (self.wallet, self.user.email))
+            print(f"{amount}$ added to your wallet and your new balance is: {self.wallet}")
         except NegativeValue as e:
             print(f'error: {e}')
-        
+
     def history(self):
         if not self.user.tickets:
             print("No tickets has been purchased yet.")
         else:
-            print(" Ticket history:")
+            print("Ticket history:")
             for ticket in self.user.tickets:
                 print(ticket)

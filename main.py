@@ -334,12 +334,12 @@ class Service:
         with MyContextManager(self.dsn) as cur:
             cur.execute("""
                 SELECT 
-                    COALESCE(SUM(CASE WHEN type='buy' THEN amount ELSE 0 END),0)+
-                    COALESCE(SUM(CASE WHEN type='refund' THEN amount ELSE 0 END),0)
+                    COALESCE(SUM(CASE WHEN type='buy' THEN amount ELSE 0 END), 0) -
+                    COALESCE(SUM(CASE WHEN type='cancel' THEN amount ELSE 0 END), 0)
                 FROM transactions;
             """)
             revenue = cur.fetchone()[0] or 0
-        print(f"Total revenue (after refunds): {revenue}$")
+        print(f"Total revenue (after cancellations): {revenue}$")
 
 
 
