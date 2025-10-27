@@ -211,7 +211,7 @@ class Service:
                 return
             ticket.status = "paid"
             ticket.quantity -= 1
-            self.dashboard._dashboard__wallet -= ticket.cost
+            self.dashboard.wallet -= ticket.cost
             self.current_user.get_ticket(ticket)
 
             with MyContextManager(self.dsn) as cur:
@@ -273,7 +273,7 @@ class Service:
             raise InsufficientFunds("insufficient funds")
         ticket.status = "paid"
         ticket.quantity -= 1
-        self.dashboard._dashboard__wallet -= ticket.cost
+        self.dashboard.wallet -= ticket.cost
         with MyContextManager(self.dsn) as cur:
             cur.execute("SELECT id FROM users WHERE email=%s;", (self.current_user.email,))
             user_id = cur.fetchone()[0]
@@ -302,7 +302,7 @@ class Service:
             print("Only paid tickets can be canceled.")
             return
         refund = int(ticket.cost * 0.8)
-        self.dashboard._dashboard__wallet += refund
+        self.dashboard.wallet += refund
         ticket.status = "canceled"
         ticket.quantity += 1
         with MyContextManager(self.dsn) as cur:

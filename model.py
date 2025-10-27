@@ -31,6 +31,7 @@ class Ticket:
         self.trip = trip
         self.cost = cost
         self.quantity = quantity
+        self.status = "pending"
 
     def __str__(self):
         return f"trip: {self.trip} | Cost: {self.cost}$"
@@ -79,18 +80,14 @@ class SuperUser(User):
 class Dashboard():
     def __init__(self,user:Passenger,wallet):
         self.user = user
-        self.__wallet = wallet
-
-    @property 
-    def wallet(self):
-        return self.__wallet
+        self.wallet = wallet
     
     def charge_wallet(self,amount):
         try:
             if amount < 0:
                 raise NegativeValue("amount can not be less than zero")
-            self.__wallet+=amount
-            print(f"{amount}$ added to your wallet and your new balance is: {self.__wallet} ")
+            self.wallet+=amount
+            print(f"{amount}$ added to your wallet and your new balance is: {self.wallet} ")
         except NegativeValue as e:
             print(f'error: {e}')
         

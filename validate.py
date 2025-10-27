@@ -19,8 +19,7 @@ class ChoiceError(Exception):
 class ValidationError(Exception):
     pass
 
-class TypeError(Exception):
-    pass
+
 
 
 
