@@ -1,9 +1,11 @@
 import argparse
 from model import Passenger, SuperUser, Ticket, Trip
-from main import Service
+from main import *
 from db import MyContextManager
 from dotenv import load_dotenv
 import os
+
+
 
 load_dotenv()
 dsn = os.getenv("DSN")
@@ -18,7 +20,7 @@ parser.add_argument(
     "--register-user",
     nargs=3,
     metavar=("EMAIL", "USERNAME", "PASSWORD"),
-    help="Register a traveller",
+    help="Register a passenger",
 )
 parser.add_argument(
     "--register-admin",
@@ -45,7 +47,7 @@ if args.register_user:
     email, username, password = args.register_user
     user = Passenger(email, username, password)
     service.current_user = user
-    with MyContextManager(service.data) as cur:
+    with MyContextManager(service.dsn) as cur:
         cur.execute(
             """
             INSERT INTO users (username, email, wallet)
@@ -54,14 +56,14 @@ if args.register_user:
         """,
             (username, email),
         )
-    print(f"Traveller '{username}' registered successfully.")
+    print(f"Passenger '{username}' registered successfully.")
 
 
 if args.register_admin:
     email, username, password = args.register_admin
     admin = SuperUser(email, username, password)
     service.current_user = admin
-    with MyContextManager(service.data) as cur:
+    with MyContextManager(service.dsn) as cur:
         cur.execute(
             """
             INSERT INTO users (username, email)
@@ -79,11 +81,11 @@ if args.add_ticket:
     trip = Trip(start, end, origin, dest)
     ticket = Ticket(trip, cost, 1)
     service.tickets.append(ticket)
-    with MyContextManager(service.data) as cur:
+    with MyContextManager(service.dsn) as cur:
 
         cur.execute(
             """
-            INSERT INTO journey (start, end_date, origin, destination)
+            INSERT INTO trip (start, end_date, origin, destination)
             VALUES (%s, %s, %s, %s) RETURNING id;
         """,
             (start, end, origin, dest),
@@ -92,7 +94,7 @@ if args.add_ticket:
 
         cur.execute(
             """
-            INSERT INTO ticket (journey_id, price, quantity)
+            INSERT INTO ticket (trip_id, price, quantity)
             VALUES (%s, %s, %s);
         """,
             (trip_id, cost, 1),
@@ -102,4 +104,4 @@ if args.add_ticket:
 
 if args.show_tickets:
     service.show_tickets()
-# python3 args_parser_view.py --create-tables --register-admin admin@example.com admin AdminPass123! --add-ticket 2025-11-01 2025-11-05 Tehran Shiraz 120 --show-tickets
+# python3 argsparse.py --create-tables --register-admin admin@example.com admin AdminPass123! --add-ticket 2025-11-01 2025-11-05 Tehran Shiraz 120 --show-tickets

@@ -395,4 +395,7 @@ service.options = {
     "11": ("Create Tables", service.create_tables),
     "12": ("Exit", lambda: setattr(service, "running", False))
 }
-service.run()
+
+
+if __name__ == "__main__":
+    service.run()
