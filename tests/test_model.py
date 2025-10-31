@@ -3,7 +3,7 @@ from model import Trip,Ticket,SuperUser,Dashboard,Passenger
 from validate import *
 
 
-# Trip tests
+
 def test_trip_creation():
     trip = Trip("2025-01-01", "2025-01-02", "Tehran", "Mashhad")
     assert trip.start == "2025-01-01"
@@ -55,13 +55,13 @@ def test_cancel_reservation(sample_ticket):
 
 
 def test_passenger_get_ticket():
-    passenger = Passenger("passenger@example.com", "Alice", "Aa123456!")
+    passenger = Passenger("passenger@example.com", "Ali", "Aa123456!")
     ticket = Ticket(Trip("2025-01-01", "2025-01-02"), 100)
     passenger.get_ticket(ticket)
     assert ticket in passenger.tickets
 
 def test_passenger_get_ticket_invalid_type():
-    passenger = Passenger("passenger@example.com", "Alice", "Aa123456!")
+    passenger = Passenger("passenger@example.com", "Ali", "Aa123456!")
     with pytest.raises(TypeError):
         passenger.get_ticket("not_a_ticket")
 
@@ -74,7 +74,7 @@ def test_superuser_creation():
 
 
 def test_dashboard_history_print(capsys):
-    passenger = Passenger("passenger@example.com", "Alice", "Aa123456!")
+    passenger = Passenger("passenger@example.com", "Ali", "Aa123456!")
     ticket = Ticket(Trip("2025-01-01", "2025-01-02", "Tehran", "Mashhad"), 100)
     passenger.get_ticket(ticket)
     dashboard = Dashboard(passenger, 50)
